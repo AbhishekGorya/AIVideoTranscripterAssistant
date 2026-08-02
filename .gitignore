@@ -1,0 +1,42 @@
+# ── Environment / Secrets ──────────────────────────────────────────────
+.env
+.env.local
+
+# ── Runtime-generated data (created by the pipeline itself) ───────────
+downloads/
+vector_db/
+*.wav
+*_converted.wav
+*_chunk_*.wav
+*_sv_*.wav
+
+# ── Python ──────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ── Virtual environments ────────────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── Whisper / model caches ──────────────────────────────────────────────
+*.pt
+.cache/
+
+# ── IDE / Editor ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ── OS junk ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Logs ────────────────────────────────────────────────────────────────
+*.log
