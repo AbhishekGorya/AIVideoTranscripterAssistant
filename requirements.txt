@@ -2,7 +2,8 @@
 # Python >= 3.10 recommended
 
 # ── Audio / Video acquisition ─────────────────────────────────────────────────
-yt-dlp>=2024.4.9                  # Download audio from YouTube URLs
+youtube-transcript-api>=1.0.0     # Yt captioning tool
+yt-dlp>=2025.6.9                  # Download audio from YouTube URLs
 pydub>=0.25.1                     # Audio file manipulation / format conversion
 audioop-lts>=0.2.1                # Restores the 'audioop' module removed in Python 3.13+ (required by pydub)
 ffmpeg-python>=0.2.0              # FFmpeg bindings (FFmpeg binary must be installed separately)
