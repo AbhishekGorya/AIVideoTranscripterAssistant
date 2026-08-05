@@ -1,4 +1,5 @@
 import os
+import time
 
 import yt_dlp
 from pydub import AudioSegment
@@ -6,11 +7,31 @@ from pydub import AudioSegment
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
+# Optional: path to a cookies.txt file (Netscape format), exported from a
+# real, logged-in browser session. Set this via an env var / Streamlit
+# secret — never commit the file itself. This is the only reliable fix
+# when YouTube is blocking the *IP address itself* rather than just the
+# request signature (common on cloud hosts like Streamlit Community Cloud).
+YTDLP_COOKIES_FILE = os.getenv("YTDLP_COOKIES_FILE")
 
-def download_youtube_audio(url: str) -> str:
-    output_path = os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s")
+# YouTube's "confirm you're not a bot" / 403 wall is usually tied to which
+# internal "player client" yt-dlp pretends to be. The default web client is
+# the one most aggressively blocked on datacenter IPs; android/ios clients
+# use a different auth flow and frequently get through when web doesn't.
+# We try them in order and fall back to the next on failure.
+_PLAYER_CLIENT_FALLBACKS = ["android", "ios", "web"]
 
-    ydl_opts = {
+_COMMON_HTTP_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+
+def _build_ydl_opts(output_path: str, player_client: str) -> dict:
+    opts = {
         "format": "bestaudio/best",
         "outtmpl": output_path,
         "postprocessors": [
@@ -21,17 +42,60 @@ def download_youtube_audio(url: str) -> str:
             }
         ],
         "quiet": True,
+        "no_warnings": True,
+        "http_headers": _COMMON_HTTP_HEADERS,
+        "extractor_args": {"youtube": {"player_client": [player_client]}},
+        "retries": 3,
+        "fragment_retries": 3,
+        "socket_timeout": 30,
     }
+    if YTDLP_COOKIES_FILE and os.path.exists(YTDLP_COOKIES_FILE):
+        opts["cookiefile"] = YTDLP_COOKIES_FILE
+    return opts
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        filename = (
-            ydl.prepare_filename(info)  # [1]
-            .replace(".webm", ".wav")
-            .replace(".m4a", ".wav")
-        )
 
-    return filename
+def download_youtube_audio(url: str) -> str:
+    output_path = os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s")
+
+    last_error = None
+
+    for attempt, player_client in enumerate(_PLAYER_CLIENT_FALLBACKS, start=1):
+        ydl_opts = _build_ydl_opts(output_path, player_client)
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                filename = (
+                    ydl.prepare_filename(info)  # [1]
+                    .replace(".webm", ".wav")
+                    .replace(".m4a", ".wav")
+                )
+            return filename
+        except yt_dlp.utils.DownloadError as e:
+            last_error = e
+            print(
+                f"[download_youtube_audio] '{player_client}' client failed "
+                f"(attempt {attempt}/{len(_PLAYER_CLIENT_FALLBACKS)}): {e}"
+            )
+            time.sleep(1.5)  # brief backoff before trying the next client
+            continue
+
+    # All player clients failed — this is almost always YouTube blocking
+    # the server's IP address outright rather than a code bug.
+    raise RuntimeError(
+        "Could not download audio from YouTube after trying multiple "
+        f"client strategies ({', '.join(_PLAYER_CLIENT_FALLBACKS)}). "
+        "This usually means YouTube is blocking the server's IP address "
+        "(common on Streamlit Community Cloud and other cloud hosts), not "
+        "a bug in this code. Fixes, in order of reliability:\n"
+        "  1. Export cookies.txt from a real logged-in browser session "
+        "(e.g. with the 'Get cookies.txt LOCALLY' extension) and set the "
+        "YTDLP_COOKIES_FILE env var / Streamlit secret to its path.\n"
+        "  2. Run this app on a host with a residential/non-datacenter IP, "
+        "or behind a proxy, instead of a shared cloud platform.\n"
+        "  3. Update yt-dlp to the latest version — YouTube changes its "
+        "defenses often and yt-dlp ships fixes frequently.\n"
+        f"Last underlying error: {last_error}"
+    )
 
 
 def convert_to_wav(input_path: str) -> str:
