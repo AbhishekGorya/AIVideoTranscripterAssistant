@@ -2,6 +2,7 @@ import streamlit as st
 import time
 from dotenv import load_dotenv
 from utils.audio_processor import process_input
+from utils.youtube_captions import fetch_youtube_transcript
 from core.transcriber import transcribe_all
 from core.summarizer import summarize, generate_title
 from core.extractor import extract_action_items, extract_key_decisions, extract_questions
@@ -379,13 +380,34 @@ if run_btn:
             with progress_placeholder.container():
                 st.info("⚙️ Pipeline running — see sidebar for live status…")
 
-            update_step("audio", "active")
-            chunks = process_input(source)
-            update_step("audio", "done")
+            is_youtube_url = source.strip().startswith(("http://", "https://"))
+            transcript = None
 
-            update_step("transcript", "active")
-            transcript = transcribe_all(chunks, language)
-            update_step("transcript", "done")
+            if is_youtube_url and language == "english":
+                # Fast path: pull YouTube's own caption track directly.
+                # No video/audio download, no yt-dlp, no Whisper — and it
+                # sidesteps YouTube's SABR/PO-Token anti-bot wall entirely,
+                # which is what breaks the audio-download path on cloud
+                # hosts. Falls through to the slower path below if the
+                # video has no usable captions.
+                update_step("audio", "active")
+                transcript = fetch_youtube_transcript(source)
+                update_step("audio", "done")
+
+            if transcript:
+                update_step("transcript", "done")
+            else:
+                # Fallback: download audio (yt-dlp) and transcribe locally.
+                # Used for local files, Hinglish audio (needs Sarvam
+                # translation, not just raw captions), or YouTube videos
+                # with no caption track available.
+                update_step("audio", "active")
+                chunks = process_input(source)
+                update_step("audio", "done")
+
+                update_step("transcript", "active")
+                transcript = transcribe_all(chunks, language)
+                update_step("transcript", "done")
 
             update_step("title", "active")
             title = generate_title(transcript)
