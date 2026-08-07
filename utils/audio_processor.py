@@ -21,6 +21,18 @@ YTDLP_COOKIES_FILE = os.getenv("YTDLP_COOKIES_FILE")
 # We try them in order and fall back to the next on failure.
 _PLAYER_CLIENT_FALLBACKS = ["android", "ios", "web"]
 
+# ============================================================================
+# ADDED: 'tv' client fallback (2026 PO-Token / SABR workaround)
+# ----------------------------------------------------------------------------
+# Since early 2026 YouTube has been enforcing PO Tokens / SABR streaming that
+# breaks the android/ios/web clients above with "Requested format is not
+# available" even when cookies are valid — this is an active YouTube-vs-yt-dlp
+# fight, not a bug in this code. The 'tv' client currently still works
+# without a PO Token in most cases (yt-dlp's own maintainers added it as
+# their standard workaround), so we try it last as an extra safety net.
+_PLAYER_CLIENT_FALLBACKS = _PLAYER_CLIENT_FALLBACKS + ["tv"]
+# ============================================================================
+
 _COMMON_HTTP_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
