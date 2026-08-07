@@ -1,14 +1,33 @@
+import os
 import streamlit as st
 import time
 from dotenv import load_dotenv
+
+load_dotenv()
+
+# ============================================================================
+# ADDED: YouTube cookies bootstrap (fixes yt-dlp IP-block on Streamlit Cloud)
+# Everything in this block is new. Nothing below it was changed.
+# ----------------------------------------------------------------------------
+# If a YTDLP_COOKIES_CONTENT secret is set in Streamlit Cloud, write it to a
+# temp file and point yt-dlp at it via the YTDLP_COOKIES_FILE env var that
+# audio_processor.py already reads. Must run before audio_processor is
+# imported below, since that module reads the env var at import time.
+_cookies_content = st.secrets.get("YTDLP_COOKIES_CONTENT")
+if _cookies_content:
+    _cookies_path = "/tmp/yt_cookies.txt"
+    with open(_cookies_path, "w") as _f:
+        _f.write(_cookies_content)
+    os.environ["YTDLP_COOKIES_FILE"] = _cookies_path
+# ============================================================================
+
+# ── Original imports (unchanged) ──
 from utils.audio_processor import process_input
 from utils.youtube_captions import fetch_youtube_transcript
 from core.transcriber import transcribe_all
 from core.summarizer import summarize, generate_title
 from core.extractor import extract_action_items, extract_key_decisions, extract_questions
 from core.rag_engine import build_rag_chain, ask_question
-
-load_dotenv()
 
 # ─── Page Config ────────────────────────────────────────────────────────────────
 st.set_page_config(
