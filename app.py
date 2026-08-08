@@ -402,24 +402,33 @@ if run_btn:
             is_youtube_url = source.strip().startswith(("http://", "https://"))
             transcript = None
 
-            if is_youtube_url and language == "english":
-                # Fast path: pull YouTube's own caption track directly.
-                # No video/audio download, no yt-dlp, no Whisper — and it
-                # sidesteps YouTube's SABR/PO-Token anti-bot wall entirely,
-                # which is what breaks the audio-download path on cloud
-                # hosts. Falls through to the slower path below if the
-                # video has no usable captions.
+            if is_youtube_url:
+                # Fast path: pull a transcript directly from Supadata /
+                # YouTube's own caption track. No video/audio download, no
+                # yt-dlp, no Whisper/Sarvam — and it sidesteps YouTube's
+                # SABR/PO-Token anti-bot wall entirely, which is what breaks
+                # the audio-download path on cloud hosts.
+                #
+                # This now covers Hinglish too: Supadata is asked for an
+                # English ("en") transcript regardless of the video's
+                # spoken language, and it translates server-side. If
+                # Supadata isn't configured or has no translated track for
+                # this video, fetch_youtube_transcript() returns None and
+                # we fall through to the slower path below.
                 update_step("audio", "active")
-                transcript = fetch_youtube_transcript(source)
+                transcript = fetch_youtube_transcript(
+                    source, languages=["en"] if language == "english" else ["hi"]
+                )
                 update_step("audio", "done")
 
             if transcript:
                 update_step("transcript", "done")
             else:
                 # Fallback: download audio (yt-dlp) and transcribe locally.
-                # Used for local files, Hinglish audio (needs Sarvam
-                # translation, not just raw captions), or YouTube videos
-                # with no caption track available.
+                # Used for local files, or any YouTube video where Supadata
+                # / captions couldn't produce a transcript (Hinglish videos
+                # with no translated caption track, no SUPADATA_API_KEY
+                # configured, videos with captions disabled, etc.).
                 update_step("audio", "active")
                 chunks = process_input(source)
                 update_step("audio", "done")
