@@ -177,8 +177,11 @@ def fetch_youtube_transcript(
     """
     Production transcript strategy.
 
-    1. Supadata
-    2. youtube-transcript-api
+    1. Supadata (requests an English-translated transcript — this works
+       for Hinglish/Hindi videos too, since Supadata translates on
+       YouTube's side, not just returns the original-language track)
+    2. youtube-transcript-api (English only — cannot translate, so this
+       step is skipped when the caller wants a translated transcript)
 
     Audio/yt-dlp fallback is intentionally NOT performed here.
     The caller decides whether audio fallback is appropriate.
@@ -190,12 +193,15 @@ def fetch_youtube_transcript(
         language = languages[0]
 
     # ---------------------------------------------------------
-    # Production provider
+    # Production provider — always ask Supadata for English ("en"),
+    # regardless of the video's spoken language. Supadata translates
+    # server-side, which is what lets this cover Hinglish videos too
+    # without ever touching yt-dlp.
     # ---------------------------------------------------------
 
     transcript = fetch_supadata_transcript(
         url,
-        language=language,
+        language="en",
     )
 
     if transcript:
@@ -206,21 +212,26 @@ def fetch_youtube_transcript(
         return transcript
 
     # ---------------------------------------------------------
-    # Local fallback
+    # Local fallback — only meaningful when the caller actually wants
+    # the original-language (English) captions, since this provider
+    # can't translate. Skipped for a Hinglish request so the caller
+    # falls through to the Sarvam/audio path instead of returning a
+    # non-English transcript by mistake.
     # ---------------------------------------------------------
 
-    transcript = fetch_local_youtube_transcript(
-        url,
-        languages=languages,
-    )
-
-    if transcript:
-        print(
-            "[YouTube] Transcript obtained through "
-            "youtube-transcript-api."
+    if language == "en":
+        transcript = fetch_local_youtube_transcript(
+            url,
+            languages=languages,
         )
 
-        return transcript
+        if transcript:
+            print(
+                "[YouTube] Transcript obtained through "
+                "youtube-transcript-api."
+            )
+
+            return transcript
 
     print(
         "[YouTube] No transcript provider could retrieve "
